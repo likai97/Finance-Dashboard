@@ -3,7 +3,7 @@ This app visualizes stock data and allows for a Free Cash Flow forecast!
 
 Visit it on: https://fcf-dashboard.herokuapp.com/
 
-Note: As the App is in Sleep Mode per Default to reduce costs, the initial loading time about a minute. 
+**Note**: As the App is in sleep mode per default to reduce costs, the initial loading time can take up to a minute. 
 
 
 ## Requirements
@@ -25,7 +25,7 @@ Requirements:
 
 It is recommended to create a separate virtual environment and install [requirements.txt](https://github.com/likai97/Finance-Dashboard/blob/main/requirements.txt).
 
-### Usage
+## Usage
 
 To run the app locally, you'll need to get the following API keys and add them to the [utils.py](https://github.com/likai97/Finance-Dashboard/blob/main/utils.py):
 
