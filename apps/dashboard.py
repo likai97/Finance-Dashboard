@@ -25,8 +25,15 @@ layout = html.Div([
         ]),
         dbc.Row([
             dbc.Col([html.P(
-                children='Please Search for a Stock via its Ticker and hit search once! Please note that only a limited'
-                         ' APIs are possible and that fetching the data can take a while.')]
+                children=['Please Search for a Stock via its Ticker and hit search once! Please note that only a limited'
+                         ' APIs are possible and that fetching the data can take a while.'
+                         'If an error occurs or the page is not loading properly, please report a bug at ',
+                html.A(
+                    'https://github.com/likai97/Finance-Dashboard',
+                    href="https://github.com/likai97/Finance-Dashboard",
+                    target="_blank"
+                ), '.'])
+            ]
                 , className="")
         ]),
         dbc.Row([
@@ -98,8 +105,8 @@ layout = html.Div([
     Input("btn-search", "n_clicks"),
     State('drpdwn-stock', 'value'))
 def display_page(n_clicks, ticker):
-    if n_clicks is None:
-        raise PreventUpdate
+    # if n_clicks is None:
+    #     raise PreventUpdate
     df_plot, df_inc, df_overview, df_store = get_data_alphavantage(n_clicks, ticker)
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Close']))
@@ -173,9 +180,9 @@ def display_stats_for_forecast(data):
     if data is None:
         raise PreventUpdate
     df_table = pd.DataFrame(data[0])
-    for x in ['revenue', 'Total Cash From Operating Activities', 'Free Cash Flow', 'netDebt']:
+    for x in ['revenue', 'OperatingCashFlow', 'Free Cash Flow', 'netDebt']:
         df_table[x] = df_table[x].apply(format_number)
-    df_table.rename(columns={"revenue": 'Total Revenue', 'Total Cash From Operating Activities': 'Operating Cash Flow',
+    df_table.rename(columns={"revenue": 'Total Revenue', 'OperatingCashFlow': 'Operating Cash Flow',
                              'sharesOutstanding': 'Common Stock Shares Outstanding', 'netDebt': 'Net Debt'},
                     inplace=True)
     df_table = df_table.T

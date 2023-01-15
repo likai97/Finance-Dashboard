@@ -12,6 +12,7 @@ av_keys = ["", ""]  # enter your alphavantage key here
 fmp_key = ""  # financialmodelingprep api key
 pg_key = ""  # polygon api key
 
+
 def get_data_alphavantage(n_clicks, stock):
     """Returns the alpha vantage data
 
@@ -24,34 +25,51 @@ def get_data_alphavantage(n_clicks, stock):
     """
     print(n_clicks)
     print(stock)
+    # default data for display
+    if n_clicks is None:
+        df_time = pd.read_csv('./data/default_price_time_series.csv', index_col=0)
+        df_all = pd.read_csv('./data/default_financial_data.csv', index_col=0)
+        df_all['date'] = pd.to_datetime(df_all['date'])
+        key_stats = pd.read_csv('./data/default_company_statistics.csv')
+        store_data = pd.read_csv('./data/default_fcf_data.csv', index_col=0)
+        print("finished fetching data")
+        return df_time, df_all, key_stats, store_data
+
     if n_clicks % 2 == 0:
         av_key = av_keys[0]
     else:
         av_key = av_keys[1]
-
+    try:
     # TimeSeries data
-    df_time = get_stock_price_data(stock)
-    # add daily and cumulative return
-    df_time = add_daily_return(df_time)
-    df_time = add_cumulative_return(df_time)
-    #add bollinger bands
-    df_time = add_bollinger_band(df_time)
-    #add ichimoku cloud data
-    df_time = add_ichimoku_cloud(df_time)
-    # Income Statement
-    df_inc = get_income_data(fmp_key, stock)
-    # Balance
-    df_balance = get_balance_sheet_data(fmp_key, stock)
-    # Cash Flow
-    df_cash = get_cashflow_data(stock)
-    # Overview data
-    key_stats, shares = get_company_statistics(av_key, stock)
-    # Join the dataset
-    df_all = process_financials(df_inc, df_balance, df_cash, shares)
-    store_data = df_all[["Fiscal Year", 'revenue', 'Revenue % Change', 'Average Revenue Growth',
-                         'Total Cash From Operating Activities', 'OCF % Change', 'Average OCF Growth',
-                         'Free Cash Flow', 'FCF % Change', 'Average FCF Growth', 'netDebt',
-                         'sharesOutstanding']].set_index('Fiscal Year')
+        df_time = get_stock_price_data(stock)
+        # add daily and cumulative return
+        df_time = add_daily_return(df_time)
+        df_time = add_cumulative_return(df_time)
+        #add bollinger bands
+        df_time = add_bollinger_band(df_time)
+        #add ichimoku cloud data
+        df_time = add_ichimoku_cloud(df_time)
+        # Income Statement
+        df_inc = get_income_data(fmp_key, stock)
+        # Balance
+        df_balance = get_balance_sheet_data(fmp_key, stock)
+        # Cash Flow
+        df_cash = get_cashflow_data(av_key, stock)
+        # Overview data
+        key_stats, shares = get_company_statistics(av_key, stock)
+        # Join the dataset
+        df_all = process_financials(df_inc, df_balance, df_cash, shares)
+        store_data = df_all[["Fiscal Year", 'revenue', 'Revenue % Change', 'Average Revenue Growth',
+                             'OperatingCashFlow', 'OCF % Change', 'Average OCF Growth',
+                             'Free Cash Flow', 'FCF % Change', 'Average FCF Growth', 'netDebt',
+                             'sharesOutstanding']].set_index('Fiscal Year')
+    # error occured because api provider probably changed their dataformat
+    except:
+        df_time = pd.read_csv('./data/default_price_time_series.csv', index_col=0)
+        df_all = pd.read_csv('./data/default_financial_data.csv', index_col=0)
+        df_all['date'] = pd.to_datetime(df_all['date'])
+        key_stats = pd.read_csv('./data/default_company_statistics.csv')
+        store_data = pd.read_csv('./data/default_fcf_data.csv', index_col=0)
 
     print("finished fetching data")
     return df_time, df_all, key_stats, store_data
@@ -89,6 +107,7 @@ def get_balance_sheet_data(key, stock):
              'totalCurrentLiabilities', 'longTermDebt', 'totalNonCurrentLiabilities', 'totalLiabilities', 'commonStock',
              'totalStockholdersEquity', 'totalDebt', 'netDebt']]
     df['date'] = pd.to_datetime(df['date'])
+    df['Fiscal Year'] = df['date'].dt.year
     return df
 
 
@@ -111,10 +130,11 @@ def get_income_data(key, stock):
              'ebitda', 'operatingIncome', 'incomeBeforeTax', 'netIncome', 'eps']]
     df['ebit'] = df['ebitda'] - df['depreciationAndAmortization']
     df['date'] = pd.to_datetime(df['date'])
+    df['Fiscal Year'] = df['date'].dt.year
     return df
 
 
-def get_cashflow_data(stock):
+def get_cashflow_data(key, stock):
     """Returns the cashflow data
 
     Args:
@@ -124,11 +144,26 @@ def get_cashflow_data(stock):
     Returns:
       A dataframe with cashflow data
     """
-    stock = yf.Ticker(stock)
-    df = stock.get_cashflow().T
-    df.reset_index(level=0, inplace=True)
-    df.rename(columns={df.columns[0]: 'date'}, inplace=True)
-    return df[['date', 'Total Cash From Operating Activities', 'Capital Expenditures']]
+    try:
+        url = 'https://www.alphavantage.co/query?function=CASH_FLOW&symbol=' + stock + '&apikey=' + key
+        r = requests.get(url)
+        df = pd.DataFrame(r.json()['annualReports'])
+        df.rename(columns={'fiscalDateEnding': 'date',
+                           'operatingCashflow': 'OperatingCashFlow',
+                           'capitalExpenditures': 'CapitalExpenditure'}, inplace=True)
+        df.date = pd.to_datetime(df.date, format="%Y/%m/%d %H:%M")
+        df['Fiscal Year'] = df.date.dt.year
+        # Change datatype
+        df['OperatingCashFlow'] = pd.to_numeric(df['OperatingCashFlow'])
+        df['CapitalExpenditure'] = pd.to_numeric(df['CapitalExpenditure'])
+        return df[['date', 'Fiscal Year', 'OperatingCashFlow', 'CapitalExpenditure']]
+    except KeyError:
+        stock = yf.Ticker(stock)
+        df = stock.get_cashflow().T
+        df.reset_index(level=0, inplace=True)
+        df.rename(columns={df.columns[0]: 'date'}, inplace=True)
+        df['Fiscal Year'] = df.date.dt.year
+        return df[['date', 'Fiscal Year', 'OperatingCashFlow', 'CapitalExpenditure']]
 
 
 def get_company_statistics(key, stock):
@@ -175,18 +210,17 @@ def process_financials(inc, balance, cash, shares):
       A dataframe with cashflow data
     """
     # Join the dataset
-    df_all = pd.merge(inc, balance, how="left", on=["date"]).merge(cash, how="left", on=["date"])
+    df_all = pd.merge(inc, balance, how="left", on=["Fiscal Year"]).merge(cash, how="left", on=["Fiscal Year"])
 
     # calculate Stats
     df_all["Gross Margin"] = df_all["grossProfit"]/df_all["revenue"] * 100
     df_all["Net Profit Margin"] = df_all["netIncome"] / df_all["revenue"] * 100
     df_all["EBIT Margin"] = df_all["ebit"] / df_all["revenue"] * 100
-    df_all['Free Cash Flow'] = df_all['Total Cash From Operating Activities'] - df_all['Capital Expenditures']
+    df_all['Free Cash Flow'] = df_all['OperatingCashFlow'] + df_all['CapitalExpenditure']
     df_all["ROE"] = df_all["netIncome"] / df_all['totalStockholdersEquity'] * 100
-    df_all['Fiscal Year'] = df_all['date'].dt.year
 
     df_all['Revenue % Change'] = round(df_all['revenue'].pct_change(-1) * 100, 2)
-    df_all['OCF % Change'] = round(df_all['Total Cash From Operating Activities'].pct_change(-1) * 100, 2)
+    df_all['OCF % Change'] = round(df_all['OperatingCashFlow'].pct_change(-1) * 100, 2)
     df_all['FCF % Change'] = round(df_all['Free Cash Flow'].pct_change(-1) * 100, 2)
 
     df_all['Average Revenue Growth'] = round(df_all['Revenue % Change'].mean(), 2)
@@ -203,7 +237,7 @@ def convert_dict_to_pd(dict_data):
     dff = pd.DataFrame(dict_data)
 
     dff['Revenue % Change'] = dff['revenue'].pct_change(-1) * 100
-    dff['OCF % Change'] = dff['Total Cash From Operating Activities'].pct_change(-1) * 100
+    dff['OCF % Change'] = dff['OperatingCashFlow'].pct_change(-1) * 100
     dff['FCF % Change'] = dff['Free Cash Flow'].pct_change(-1) * 100
 
     dff['Average Revenue Growth'] = round(dff['Revenue % Change'].mean(), 2)
@@ -211,7 +245,7 @@ def convert_dict_to_pd(dict_data):
     dff['Average FCF Growth'] = round(dff['FCF % Change'].mean(), 2)
 
     return dff.loc[
-        0, ["Fiscal Year", 'revenue', 'Average Revenue Growth', 'Total Cash From Operating Activities', 'Average OCF Growth',
+        0, ["Fiscal Year", 'revenue', 'Average Revenue Growth', 'OperatingCashFlow', 'Average OCF Growth',
             'Free Cash Flow', 'Average FCF Growth', 'Net Debt', 'commonStock']]
 
 
@@ -380,7 +414,7 @@ def plot_ichimoku_cloud(df, ticker):
     return fig
 
 
-def train_ml_model(ticker, n_shifts=30, train_size=0.9, epochs=50):
+def train_ml_model(ticker, n_shifts=30, train_size=0.9, epochs=30):
     """
     Trains a GP Model and returns a forecast depending on the closing price
 
@@ -424,7 +458,7 @@ def train_ml_model(ticker, n_shifts=30, train_size=0.9, epochs=50):
     likelihood.train()
 
     # Use the adam optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.15)  # Includes GaussianLikelihood parameters
 
     # "Loss" for GPs - the marginal log likelihood
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)

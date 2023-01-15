@@ -19,11 +19,23 @@ navbar = dbc.Navbar(
                 className="g-2",
             ),
         ),
-        html.A(
-            dbc.Col(html.Img(src="/assets/home.png", height="30px")),
-            href="/home",
-        )
+        dbc.Col(width=6),
+        dbc.Row([
+            dbc.Col([
+                html.A(
+                    dbc.Col(html.Img(src="/assets/github.png", height="30px")),
+                    href="https://github.com/likai97/Finance-Dashboard",
+                    target="_blank"
+                )
+            ]),
+            dbc.Col([
+                html.A(
+                    dbc.Col(html.Img(src="/assets/home.png", height="30px")),
+                    href="/stockanalysis",
+                )
+            ]),
 
+        ])
     ])
 )
 
@@ -41,7 +53,7 @@ def display_page(pathname):
     if pathname == '/stockanalysis':
         return dashboard.layout
     else:
-        return home.layout
+        return dashboard.layout
 
 
 if __name__ == '__main__':
